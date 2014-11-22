@@ -19,3 +19,15 @@ test: all
 clean:
 	rm $(SEND) $(RECV) $(SENDRECV).o
 
+run_s: all
+	./run --size small --printlog
+
+run_m: all
+	./run --size medium --printlog
+
+run_l: all
+	./run --size large --printlog
+
+run_h: all
+	./run --size huge --printlog
+

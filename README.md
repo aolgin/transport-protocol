@@ -4,7 +4,21 @@ transport-protocol
 A simple and reliable transport datagram service
 Project for CS3600
 
-Requirements
+Grading
+=======
+* 60% Program Correctness
+* 15% Performance
+* 15% Style and Documenation
+* Milestone Functionality
+
+Milestone Req's
+===============
+* Pass the Basic tests
+* Correctly transmit data when the network reliably delivers packets without any duplication, drops, etc.
+* Implement a window
+
+
+Overall Requirements
 ============
 * Sender must accept data from STDIN, sending data until EOF reached
 * Sender and Receiver must work together to transmit the data reliably
