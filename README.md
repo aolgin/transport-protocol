@@ -9,7 +9,7 @@ Grading
 * 60% Program Correctness
 * 15% Performance
 * 15% Style and Documenation
-* Milestone Functionality
+* 10% Milestone Functionality
 
 Milestone Req's
 ===============
