@@ -27,6 +27,11 @@ header *get_header(void *data);
 char *get_data(void *data);
 char *timestamp();
 void mylog(char *fmt, ...);
+void update_window(int ack);
+int in_window(int seq);
+
+#define WIN_SIZE 10
+static const int max_seq_num = 2 * WIN_SIZE;
 
 #endif
 

@@ -19,12 +19,31 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <alloca.h>
 
 #include "3600sendrecv.h"
 
 static int DATA_SIZE = 1460;
 
 unsigned int sequence = 0;
+unsigned int win_start = 0;
+
+//TODO possibly delete, we'll see
+void update_window(int ack) {
+  win_start = ack;
+}
+
+int in_window(int seq) {
+  // If the sequence number is larger than the window's first
+  // position plus the window size, or if it is smaller than the first position
+  // return false
+  if (seq >= WIN_SIZE + win_start || seq < win_start) {
+    return 0;
+  } else {
+    // else, it is in the window
+    return 1;
+  }
+}
 
 void usage() {
   printf("Usage: 3600send host:port\n");
@@ -136,7 +155,79 @@ int main(int argc, char *argv[]) {
   t.tv_sec = 30;
   t.tv_usec = 0;
 
-  while (send_next_packet(sock, out)) {
+  int plen = 0;
+  int sendseq = sequence;
+
+  // while there is still data to send
+  //while (get_next_packet(sequence, &plen) != NULL) { // TODO need some way to determine this...
+  int sumthing = 50;
+  while (sumthing > 0) {
+    // while the sequence number is in the window
+    while (in_window(sendseq)) {
+      // Send out the whole window's worth of packets
+      // If an error occurs, break
+      if (send_next_packet(sock, out) < 1) {
+        break;
+      }
+      sendseq++; // increment the sequence number
+    }
+   
+    int done;
+    int recvwinstart = sequence;
+    int recvwinend = recvwinstart + WIN_SIZE;
+    int same_acks = 1; // for keeping track of if three of the same acks have been received
+                       // if so, need to retransmit
+    int old_ack = -1; // the previous acknowledgement, -1 so that initalization doesn't screw up
+    while (sequence < recvwinend) {  //(in_window(sequence)) {
+      done = 0;
+      while (! done) {
+        // clear the socks set
+        FD_ZERO(&socks);
+        // add sock to socks set
+        FD_SET(sock, &socks);
+
+        // wait to receive, or for a timeout
+        if (select(sock + 1, &socks, NULL, NULL, &t)) {
+          unsigned char buf[10000];
+          int buf_len = sizeof(buf);
+          int received;
+          if ((received = recvfrom(sock, &buf, buf_len, 0, (struct sockaddr *) &in, (socklen_t *) &in_len)) < 0) {
+            perror("recvfrom");
+            exit(1);
+          }
+
+          header *myheader = get_header(buf);
+
+          if ((myheader->magic == MAGIC) && (myheader->sequence >= sequence) && (myheader->ack == 1) && in_window(myheader->sequence)) {
+            mylog("[recv ack] %d\n", myheader->sequence);
+            sequence = myheader->sequence;
+            //TODO currently just accumulating, but will be used to retranmission later...
+            if (sequence == old_ack) { same_acks++; } else { same_acks = 1; } 
+            old_ack = sequence; 
+            if (sequence > win_start) { win_start = sequence; }
+            done = 1;
+          } else {
+            mylog("[recv corrupted ack] %x %d\n", MAGIC, sequence);
+          }
+        } else {
+          mylog("[error] timeout occurred\n");
+        }
+      }
+      
+      sequence++;
+    }
+    sequence++;
+    sumthing--;
+  }
+
+  // TODO This is never reached
+  send_final_packet(sock, out);
+  mylog("[completed]\n");
+  return 0;
+
+  /*
+  while (in_window(sequence) && send_next_packet(sock, out)) {
+  //while (send_next_packet(sock, out)) {
     int done = 0;
 
     while (! done) {
@@ -158,6 +249,7 @@ int main(int argc, char *argv[]) {
         if ((myheader->magic == MAGIC) && (myheader->sequence >= sequence) && (myheader->ack == 1)) {
           mylog("[recv ack] %d\n", myheader->sequence);
           sequence = myheader->sequence;
+          update_window(sequence);
           done = 1;
         } else {
           mylog("[recv corrupted ack] %x %d\n", MAGIC, sequence);
@@ -166,11 +258,14 @@ int main(int argc, char *argv[]) {
         mylog("[error] timeout occurred\n");
       }
     }
+
+    // TODO maybe?
+    sequence++;
   }
 
   send_final_packet(sock, out);
 
   mylog("[completed]\n");
 
-  return 0;
+  return 0; */
 }

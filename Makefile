@@ -1,6 +1,7 @@
 SEND = 3600send
 RECV = 3600recv
 SENDRECV = 3600sendrecv
+NETSIM = /course/cs3600f14/bin/project4/netsim
 
 all: $(SEND) $(RECV)
 
@@ -20,14 +21,17 @@ clean:
 	rm $(SEND) $(RECV) $(SENDRECV).o
 
 run_s: all
+	$(NETSIM)
 	./run --size small --printlog
 
 run_m: all
+	$(NETSIM)
 	./run --size medium --printlog
 
 run_l: all
+	$(netsim)
 	./run --size large --printlog
 
 run_h: all
+	$(netsim)
 	./run --size huge --printlog
-
