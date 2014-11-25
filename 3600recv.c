@@ -114,7 +114,7 @@ int main() {
         mylog("[send ack] %d\n", myheader->sequence + myheader->length);
 
         // Send an acknowledgement
-        header *responseheader = make_header(myheader->sequence + myheader->length, 0, myheader->eof, nr);
+        header *responseheader = make_header(nr, 0, myheader->eof, 1);
         if (sendto(sock, responseheader, sizeof(header), 0, (struct sockaddr *) &in, (socklen_t) sizeof(in)) < 0) {
           perror("sendto");
           exit(1);
