@@ -22,6 +22,8 @@
 
 #include "3600sendrecv.h"
 
+const int WINDOW_SZ = 10;
+
 int main() {
   /**
    * I've included some basic code for opening a UDP socket in C, 
@@ -74,6 +76,10 @@ int main() {
   int buf_len = 1500;
   void* buf = malloc(buf_len);
 
+  // Set up out window variables
+  int nr = 0; // The highest packet received
+  int ns = 1; // The highest packet not yet received + 1
+
   // wait to receive, or for a timeout
   while (1) {
     FD_ZERO(&socks);
@@ -90,14 +96,25 @@ int main() {
 
       header *myheader = get_header(buf);
       char *data = get_data(buf);
-  
+ 
+      // We have successfully received a packet 
       if (myheader->magic == MAGIC) {
         write(1, data, myheader->length);
+
+        // Update sequence variables
+        if (myheader->sequence > ns) {
+          ns = myheader->sequence + 1;
+        }
+        if (myheader->sequence == nr) {
+          nr++;
+        }
+         
 
         mylog("[recv data] %d (%d) %s\n", myheader->sequence, myheader->length, "ACCEPTED (in-order)");
         mylog("[send ack] %d\n", myheader->sequence + myheader->length);
 
-        header *responseheader = make_header(myheader->sequence + myheader->length, 0, myheader->eof, 1);
+        // Send an acknowledgement
+        header *responseheader = make_header(myheader->sequence + myheader->length, 0, myheader->eof, nr);
         if (sendto(sock, responseheader, sizeof(header), 0, (struct sockaddr *) &in, (socklen_t) sizeof(in)) < 0) {
           perror("sendto");
           exit(1);
