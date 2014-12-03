@@ -25,19 +25,13 @@
 
 static int DATA_SIZE = 1460;
 
-unsigned int sequence = 0;
-unsigned int win_start = 0;
-
-//TODO possibly delete, we'll see
-void update_window(int ack) {
-  win_start = ack;
-}
+int na = -1;
 
 int in_window(int seq) {
   // If the sequence number is larger than the window's first
   // position plus the window size, or if it is smaller than the first position
   // return false
-  if (seq >= WIN_SIZE + win_start || seq < win_start) {
+  if (seq >= WIN_SIZE + na) { // || seq < na) {
     return 0;
   } else {
     // else, it is in the window
@@ -83,7 +77,7 @@ void *get_next_packet(int sequence, int *len) {
   return packet;
 }
 
-int send_next_packet(int sock, struct sockaddr_in out) {
+int send_next_packet(int sequence, int sock, struct sockaddr_in out) {
   int packet_len = 0;
   void *packet = get_next_packet(sequence, &packet_len);
 
@@ -100,8 +94,8 @@ int send_next_packet(int sock, struct sockaddr_in out) {
   return 1;
 }
 
-void send_final_packet(int sock, struct sockaddr_in out) {
-  header *myheader = make_header(sequence+1, 0, 1, 0);
+void send_final_packet(int seq, int sock, struct sockaddr_in out) {
+  header *myheader = make_header(seq+1, 0, 1, 0);
   mylog("[send eof]\n");
 
   if (sendto(sock, myheader, sizeof(header), 0, (struct sockaddr *) &out, (socklen_t) sizeof(out)) < 0) {
@@ -155,117 +149,49 @@ int main(int argc, char *argv[]) {
   t.tv_sec = 30;
   t.tv_usec = 0;
 
-  int plen = 0;
-  int sendseq = sequence;
+  int nt = na+1; // lowest packet not yet transmitted
+
+  int final_seq = -1;
 
   // while there is still data to send
-  //while (get_next_packet(sequence, &plen) != NULL) { // TODO need some way to determine this...
-  int sumthing = 50;
-  while (sumthing > 0) {
+  while (na != final_seq) {
     // while the sequence number is in the window
-    while (in_window(sendseq)) {
+    while (in_window(nt)) {
       // Send out the whole window's worth of packets
       // If an error occurs, break
-      if (send_next_packet(sock, out) < 1) {
-        break;
-      }
-      sendseq++; // increment the sequence number
-    }
-   
-    int done;
-    int recvwinstart = sequence;
-    int recvwinend = recvwinstart + WIN_SIZE;
-    int same_acks = 1; // for keeping track of if three of the same acks have been received
-                       // if so, need to retransmit
-    int old_ack = -1; // the previous acknowledgement, -1 so that initalization doesn't screw up
-    while (sequence < recvwinend) {  //(in_window(sequence)) {
-      done = 0;
-      while (! done) {
-        // clear the socks set
-        FD_ZERO(&socks);
-        // add sock to socks set
-        FD_SET(sock, &socks);
-
-        // wait to receive, or for a timeout
-        if (select(sock + 1, &socks, NULL, NULL, &t)) {
-          unsigned char buf[10000];
-          int buf_len = sizeof(buf);
-          int received;
-          if ((received = recvfrom(sock, &buf, buf_len, 0, (struct sockaddr *) &in, (socklen_t *) &in_len)) < 0) {
-            perror("recvfrom");
-            exit(1);
-          }
-
-          header *myheader = get_header(buf);
-
-          if ((myheader->magic == MAGIC) && (myheader->sequence >= sequence) && (myheader->ack == 1) && in_window(myheader->sequence)) {
-            mylog("[recv ack] %d\n", myheader->sequence);
-            sequence = myheader->sequence;
-            //TODO currently just accumulating, but will be used to retranmission later...
-            if (sequence == old_ack) { same_acks++; } else { same_acks = 1; } 
-            old_ack = sequence; 
-            if (sequence > win_start) { win_start = sequence; }
-            done = 1;
-          } else {
-            mylog("[recv corrupted ack] %x %d\n", MAGIC, sequence);
-          }
-        } else {
-          mylog("[error] timeout occurred\n");
-        }
-      }
-      
-      sequence++;
-    }
-    sequence++;
-    sumthing--;
-  }
-
-  // TODO This is never reached
-  send_final_packet(sock, out);
-  mylog("[completed]\n");
-  return 0;
-
-  /*
-  while (in_window(sequence) && send_next_packet(sock, out)) {
-  //while (send_next_packet(sock, out)) {
-    int done = 0;
-
-    while (! done) {
       FD_ZERO(&socks);
       FD_SET(sock, &socks);
-
-      // wait to receive, or for a timeout
-      if (select(sock + 1, &socks, NULL, NULL, &t)) {
-        unsigned char buf[10000];
-        int buf_len = sizeof(buf);
-        int received;
-        if ((received = recvfrom(sock, &buf, buf_len, 0, (struct sockaddr *) &in, (socklen_t *) &in_len)) < 0) {
-          perror("recvfrom");
-          exit(1);
-        }
-
-        header *myheader = get_header(buf);
-
-        if ((myheader->magic == MAGIC) && (myheader->sequence >= sequence) && (myheader->ack == 1)) {
-          mylog("[recv ack] %d\n", myheader->sequence);
-          sequence = myheader->sequence;
-          update_window(sequence);
-          done = 1;
-        } else {
-          mylog("[recv corrupted ack] %x %d\n", MAGIC, sequence);
-        }
-      } else {
-        mylog("[error] timeout occurred\n");
+      if (send_next_packet(nt, sock, out) < 1) {
+        final_seq = nt - 1;
+        break;
       }
+      nt++; // increment the sequence number
     }
 
-    // TODO maybe?
-    sequence++;
+    FD_ZERO(&socks);
+    FD_SET(sock, &socks);
+    if (select(sock + 1, &socks, NULL, NULL, &t)) {
+      // Attempt to receive an ack
+      unsigned char buf[10000];
+      int buf_len = sizeof(buf);
+      if (recvfrom(sock, &buf, buf_len, 0, (struct sockaddr *) &in, (socklen_t *) &in_len) < 0) {
+        perror("recvfrom");
+        exit(1);
+      }
+
+      header *myheader = get_header(buf);
+
+      if ((myheader->magic == MAGIC) && (myheader->sequence > na) && (myheader->ack == 1)) {
+        mylog("[recv ack] %d\n", myheader->sequence);
+        na = myheader->sequence;
+      } else {
+        mylog("[recv corrupted ack] %x %d\n", MAGIC, na);
+      }
+    } else {
+       mylog("[error] timeout occurred\n");
+    }
   }
-
-  send_final_packet(sock, out);
-
+  send_final_packet(nt, sock, out);
   mylog("[completed]\n");
-
-  return 0; */
+  return 0;
 }
