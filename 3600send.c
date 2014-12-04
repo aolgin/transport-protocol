@@ -152,22 +152,24 @@ int main(int argc, char *argv[]) {
 
   int nt = na+1; // lowest packet not yet transmitted
 
-  int final_seq = -1;
+  int final_seq = -1; // The final sequence number, initially set to -1 to avoid conflicts
+  int same_acks = 1;  // The number of consecutive acks of the same sequence number
+  int old_ack = -1;   // The sequence number of the previously received ack
 
   // while there is still data to send
   while (nt >= final_seq) { // TODO bug here
 
     // while the sequence number is in the window
-    while (in_window(nt)) {
+    while (in_window(nt) && nt > final_seq) {
       // Send out the whole window's worth of packets
-      // If an error occurs, breaki
+      // If an error occurs, break
       mylog("nt = %d\n", nt);
       FD_ZERO(&socks);
       FD_SET(sock, &socks);
-      if (send_next_packet(nt, sock, out) < 1) { //TODO still causing an issue. How to handle final packet???
-        final_seq = nt - 1;
+      if (send_next_packet(nt, sock, out) < 1) {
+        final_seq = nt--;
         send_final_packet(nt, sock, out);
-        mylog("[completed]\n");
+        mylog("[completed]\n"); 
         break;
       }
       nt++; // increment the sequence number
@@ -185,12 +187,13 @@ int main(int argc, char *argv[]) {
       }
 
       header *myheader = get_header(buf);
-
-
+     
       mylog("ACK Seq: %d\n", myheader->sequence);
       mylog("na: %d\n", na);
       if ((myheader->magic == MAGIC) && (myheader->sequence > na) && (myheader->ack == 1)) {
         mylog("[recv ack] %d\n", myheader->sequence);
+        if (old_ack == myheader->sequence) { same_acks++; } else { same_acks = 1; }
+        old_ack = na;
         na = myheader->sequence;
       } else {
         if (myheader->eof) {
@@ -199,7 +202,7 @@ int main(int argc, char *argv[]) {
         mylog("[recv corrupted ack] %x %d\n", MAGIC, na);
       }
     } else {
-       mylog("[error] timeout occurred\n");
+      mylog("[error] timeout occured\n");
     }
   }
 
