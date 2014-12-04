@@ -20,6 +20,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <alloca.h>
+#include <errno.h>
 
 #include "3600sendrecv.h"
 
@@ -130,7 +131,7 @@ int main(int argc, char *argv[]) {
   char *port_s = strtok(NULL, ":");
  
   // first, open a UDP socket  
-  int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  int sock = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK, IPPROTO_UDP);
 
   // next, construct the local port
   struct sockaddr_in out;
@@ -162,8 +163,11 @@ int main(int argc, char *argv[]) {
     // while the sequence number is in the window
     while (in_window(nt) && nt > final_seq) {
       // Send out the whole window's worth of packets
-      // If an error occurs, break
-      mylog("nt = %d\n", nt);
+      // If an error occurs, there's no more data to send,
+      // and we need to set final_seq to the last sequence number
+      // so we can check for when we get its ack
+
+      // mylog("nt = %d\n", nt);
       FD_ZERO(&socks);
       FD_SET(sock, &socks);
       if (send_next_packet(nt, sock, out) < 1) {
@@ -177,23 +181,21 @@ int main(int argc, char *argv[]) {
 
     FD_ZERO(&socks);
     FD_SET(sock, &socks);
-    if (select(sock + 1, &socks, NULL, NULL, &t)) {
-      // Attempt to receive an ack
-      unsigned char buf[10000];
-      int buf_len = sizeof(buf);
-      if (recvfrom(sock, &buf, buf_len, 0, (struct sockaddr *) &in, (socklen_t *) &in_len) < 0) {
-        perror("recvfrom");
-        exit(1);
-      }
+    // Attempt to receive an ack, this is non blocking
+    unsigned char buf[10000];
+    int buf_len = sizeof(buf);
+    int r = recvfrom(sock, &buf, buf_len, 0, (struct sockaddr *) &in, (socklen_t *) &in_len);
 
+    // We found a packet
+    if (r != -1) {
       header *myheader = get_header(buf);
-     
+   
       mylog("ACK Seq: %d\n", myheader->sequence);
       mylog("na: %d\n", na);
       if ((myheader->magic == MAGIC) && (myheader->sequence > na) && (myheader->ack == 1)) {
         mylog("[recv ack] %d\n", myheader->sequence);
-        if (old_ack == myheader->sequence) { same_acks++; } else { same_acks = 1; }
-        old_ack = na;
+        //if (old_ack == myheader->sequence) { same_acks++; } else { same_acks = 1; }
+        //old_ack = na;
         na = myheader->sequence;
       } else {
         if (myheader->eof) {
@@ -201,9 +203,15 @@ int main(int argc, char *argv[]) {
         } 
         mylog("[recv corrupted ack] %x %d\n", MAGIC, na);
       }
-    } else {
-      mylog("[error] timeout occured\n");
     }
+
+    // We found a real error
+    if (errno != EAGAIN && errno != EWOULDBLOCK) {
+      perror("recv from");
+      exit(1);
+    }
+
+    // If neither if bracket is entered there simply wasn't data available
   }
 
   return 0;
