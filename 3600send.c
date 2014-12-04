@@ -153,7 +153,7 @@ int main(int argc, char *argv[]) {
   int nt = na+1; // lowest packet not yet transmitted
 
   int final_seq = -1; // The final sequence number, initially set to -1 to avoid conflicts
-  int same_acks = 1;  // The number of concurrent acks that are the same
+  int same_acks = 1;  // The number of consecutive acks of the same sequence number
   int old_ack = -1;   // The sequence number of the previously received ack
 
   // while there is still data to send
@@ -176,7 +176,7 @@ int main(int argc, char *argv[]) {
 
     FD_ZERO(&socks);
     FD_SET(sock, &socks);
-//    if (same_acks < 3) {
+    if (same_acks < 3) {
       if (select(sock + 1, &socks, NULL, NULL, &t)) {
         // Attempt to receive an ack
         unsigned char buf[10000];
@@ -187,15 +187,13 @@ int main(int argc, char *argv[]) {
         }
 
         header *myheader = get_header(buf);
-        
-        if ((myheader->magic == MAGIC) && (myheader->sequence >= na) && (myheader->ack == 1)) {
+       
+        mylog("ACK Seq: %d\n", myheader->sequence);
+        mylog("na: %d\n", na);
+        if ((myheader->magic == MAGIC) && (myheader->sequence > na) && (myheader->ack == 1)) {
           mylog("[recv ack] %d\n", myheader->sequence);
-          
-          // Ground-work for fast-retransmit, currently won't affect code
           if (old_ack == myheader->sequence) { same_acks++; } else { same_acks = 1; }
           old_ack = na;
-          // END GROUNDWORK
-
           na = myheader->sequence;
         } else {
           if (myheader->eof) {
@@ -203,10 +201,9 @@ int main(int argc, char *argv[]) {
           } 
           mylog("[recv corrupted ack] %x %d\n", MAGIC, na);
         }
-      } else {
-         mylog("[error] timeout occurred\n");
       }
-//    }
+    }
+    same_acks = 1;
   }
 
   return 0;

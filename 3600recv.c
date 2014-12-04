@@ -93,42 +93,47 @@ int main() {
         exit(1);
       }
 
-//      dump_packet(buf, received);
-
       header *myheader = get_header(buf);
       char *data = get_data(buf);
  
       // We have successfully received a packet 
       if (myheader->magic == MAGIC) {
-        write(1, data, myheader->length);
 
-        // Update sequence variables
-        if (myheader->sequence > ns) {
-          ns = myheader->sequence + 1;
-        }
-        if (myheader->sequence == nr) {
-          nr++;
-        }
+        // Check if it's in our window
+        if (myheader->sequence >= nr && myheader->sequence < nr + WINDOW_SZ) {
+
+          write(1, data, myheader->length);
+          
+          // Update sequence variables
+          if (myheader->sequence > ns) {
+            ns = myheader->sequence + 1;
+          }
+          if (myheader->sequence == nr) {
+            nr++;
+          }
          
 
-        mylog("[recv data] %d (%d) %s\n", myheader->sequence, myheader->length, "ACCEPTED (in-order)");
-        mylog("[send ack] %d\n", myheader->sequence + myheader->length);
+          mylog("[recv data] %d (%d) %s\n", myheader->sequence, myheader->length, "ACCEPTED (in-order)");
+          mylog("[send ack] %d\n", nr-1);
 
-        // Send an acknowledgement
-        header *responseheader = make_header(nr-1, 0, myheader->eof, 1);
-        if (sendto(sock, responseheader, sizeof(header), 0, (struct sockaddr *) &in, (socklen_t) sizeof(in)) < 0) {
-          perror("sendto");
-          exit(1);
-        }
+          // Send an acknowledgement
+          header *responseheader = make_header(nr-1, 0, myheader->eof, 1);
+          if (sendto(sock, responseheader, sizeof(header), 0, (struct sockaddr *) &in, (socklen_t) sizeof(in)) < 0) {
+            perror("sendto");
+            exit(1);
+          }
 
-        if (myheader->eof) {
-          mylog("[recv eof]\n");
-          mylog("[completed]\n");
-          exit(0);
+          if (myheader->eof) {
+            mylog("[recv eof]\n");
+            mylog("[completed]\n");
+            exit(0);
+          }
+
         }
       } else {
         mylog("[recv corrupted packet]\n");
       }
+      
     } else {
       mylog("[error] timeout occurred\n");
       exit(1);

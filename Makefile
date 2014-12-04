@@ -24,6 +24,11 @@ run_s: all
 	$(NETSIM)
 	./run --size small --printlog
 
+run_s_dup: all
+	$(NETSIM) --duplicate 100
+	./run --size small --printlog
+
+
 run_m: all
 	$(NETSIM)
 	./run --size medium --printlog
