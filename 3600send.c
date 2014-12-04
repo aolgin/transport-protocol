@@ -185,6 +185,9 @@ int main(int argc, char *argv[]) {
 
       header *myheader = get_header(buf);
 
+
+      mylog("ACK Seq: %d\n", myheader->sequence);
+      mylog("na: %d\n", na);
       if ((myheader->magic == MAGIC) && (myheader->sequence > na) && (myheader->ack == 1)) {
         mylog("[recv ack] %d\n", myheader->sequence);
         na = myheader->sequence;
