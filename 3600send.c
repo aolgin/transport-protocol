@@ -159,16 +159,16 @@ int main(int argc, char *argv[]) {
   // while there is still data to send
   while (nt >= final_seq) { // TODO bug here
     // while the sequence number is in the window
-    while (in_window(nt)) {
+    while (in_window(nt) && nt > final_seq) {
       // Send out the whole window's worth of packets
       // If an error occurs, break
       mylog("nt = %d\n", nt);
       FD_ZERO(&socks);
       FD_SET(sock, &socks);
       if (send_next_packet(nt, sock, out) < 1) {
-        final_seq = nt - 1;
+        final_seq = nt--;
         send_final_packet(nt, sock, out);
-        mylog("[completed]\n");
+        mylog("[completed]\n"); 
         break;
       }
       nt++; // increment the sequence number
