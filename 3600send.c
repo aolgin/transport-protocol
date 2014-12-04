@@ -178,7 +178,6 @@ int main(int argc, char *argv[]) {
       // Attempt to receive an ack
       unsigned char buf[10000];
       int buf_len = sizeof(buf);
-      mylog("recvfrom called\n");
       if (recvfrom(sock, &buf, buf_len, 0, (struct sockaddr *) &in, (socklen_t *) &in_len) < 0) {
         perror("recvfrom");
         exit(1);
@@ -186,15 +185,12 @@ int main(int argc, char *argv[]) {
 
       header *myheader = get_header(buf);
 
-      mylog("Sequence = %d\n", myheader->sequence);
-      mylog("na = %d\n", na);
-      mylog("Sequence part of if: %d\n", myheader->sequence > na);
       if ((myheader->magic == MAGIC) && (myheader->sequence > na) && (myheader->ack == 1)) {
         mylog("[recv ack] %d\n", myheader->sequence);
         na = myheader->sequence;
       } else {
         if (myheader->eof) {
-          exit(1);
+          return 0;
         } 
         mylog("[recv corrupted ack] %x %d\n", MAGIC, na);
       }
