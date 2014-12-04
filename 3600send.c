@@ -176,34 +176,31 @@ int main(int argc, char *argv[]) {
 
     FD_ZERO(&socks);
     FD_SET(sock, &socks);
-    if (same_acks < 3) {
-      if (select(sock + 1, &socks, NULL, NULL, &t)) {
-        // Attempt to receive an ack
-        unsigned char buf[10000];
-        int buf_len = sizeof(buf);
-        if (recvfrom(sock, &buf, buf_len, 0, (struct sockaddr *) &in, (socklen_t *) &in_len) < 0) {
-          perror("recvfrom");
-          exit(1);
-        }
+    if (select(sock + 1, &socks, NULL, NULL, &t)) {
+      // Attempt to receive an ack
+      unsigned char buf[10000];
+      int buf_len = sizeof(buf);
+      if (recvfrom(sock, &buf, buf_len, 0, (struct sockaddr *) &in, (socklen_t *) &in_len) < 0) {
+        perror("recvfrom");
+        exit(1);
+      }
 
-        header *myheader = get_header(buf);
-       
-        mylog("ACK Seq: %d\n", myheader->sequence);
-        mylog("na: %d\n", na);
-        if ((myheader->magic == MAGIC) && (myheader->sequence > na) && (myheader->ack == 1)) {
-          mylog("[recv ack] %d\n", myheader->sequence);
-          if (old_ack == myheader->sequence) { same_acks++; } else { same_acks = 1; }
-          old_ack = na;
-          na = myheader->sequence;
-        } else {
-          if (myheader->eof) {
-            return 0;
-          } 
-          mylog("[recv corrupted ack] %x %d\n", MAGIC, na);
-        }
+      header *myheader = get_header(buf);
+     
+      mylog("ACK Seq: %d\n", myheader->sequence);
+      mylog("na: %d\n", na);
+      if ((myheader->magic == MAGIC) && (myheader->sequence > na) && (myheader->ack == 1)) {
+        mylog("[recv ack] %d\n", myheader->sequence);
+        if (old_ack == myheader->sequence) { same_acks++; } else { same_acks = 1; }
+        old_ack = na;
+        na = myheader->sequence;
+      } else {
+        if (myheader->eof) {
+          return 0;
+        } 
+        mylog("[recv corrupted ack] %x %d\n", MAGIC, na);
       }
     }
-    same_acks = 1;
   }
 
   return 0;
