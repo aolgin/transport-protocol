@@ -29,8 +29,16 @@ run_s_dup: all
 	./run --size small --printlog
 
 
+run_s_drp: all
+	$(NETSIM) --drop 50
+	./run --size small --printlog
+
 run_m: all
 	$(NETSIM)
+	./run --size medium --printlog
+
+run_m_drp: all
+	$(NETSIM) --drop 50
 	./run --size medium --printlog
 
 run_l: all

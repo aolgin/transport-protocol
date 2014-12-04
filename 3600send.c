@@ -156,6 +156,7 @@ int main(int argc, char *argv[]) {
 
   // while there is still data to send
   while (nt >= final_seq) { // TODO bug here
+
     // while the sequence number is in the window
     while (in_window(nt)) {
       // Send out the whole window's worth of packets
