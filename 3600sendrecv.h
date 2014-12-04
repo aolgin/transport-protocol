@@ -16,7 +16,7 @@ typedef struct header_t {
   unsigned int ack:1;
   unsigned int eof:1;
   unsigned short length;
-  unsigned int sequence;
+  int sequence;
 } header;
 
 unsigned int MAGIC;
@@ -30,7 +30,7 @@ void mylog(char *fmt, ...);
 void update_window(int ack);
 int in_window(int seq);
 
-#define WIN_SIZE 10
+#define WIN_SIZE 7
 static const int max_seq_num = 2 * WIN_SIZE;
 
 #endif

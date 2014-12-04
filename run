@@ -51,7 +51,6 @@ my $data_recv :shared;
 my $log :shared;
 
 my ($bytes_start, $packets_start) = get_traffic();
-
 $recv = open3(\*RECV_IN, \*RECV_OUT, \*RECV_ERR, "/home/amislove/bin/doalarm $TIMEOUT ./3600recv");
 
 while(! $port) {
@@ -64,8 +63,9 @@ while(! $port) {
 $time_start = time;
 $send = open3(\*SEND_IN, \*SEND_OUT, \*SEND_ERR, "/home/amislove/bin/doalarm $TIMEOUT ./3600send 127.0.0.1:$port");
 
+
 $t_sd = threads->create('send_data');
-$t_so = threads->create('read_send_out');
+$t_so = threads->create('read_send_out'); #Broken pipe here
 $t_ro = threads->create('read_recv_out');
 $t_se = threads->create('read_send_err');
 $t_re = threads->create('read_recv_err');

@@ -104,6 +104,7 @@ void send_final_packet(int seq, int sock, struct sockaddr_in out) {
   }
 }
 
+
 int main(int argc, char *argv[]) {
   /**
    * I've included some basic code for opening a UDP socket in C, 
@@ -154,15 +155,18 @@ int main(int argc, char *argv[]) {
   int final_seq = -1;
 
   // while there is still data to send
-  while (na != final_seq) {
+  while (nt >= final_seq) { // TODO bug here
     // while the sequence number is in the window
     while (in_window(nt)) {
       // Send out the whole window's worth of packets
-      // If an error occurs, break
+      // If an error occurs, breaki
+      mylog("nt = %d\n", nt);
       FD_ZERO(&socks);
       FD_SET(sock, &socks);
-      if (send_next_packet(nt, sock, out) < 1) {
+      if (send_next_packet(nt, sock, out) < 1) { //TODO still causing an issue. How to handle final packet???
         final_seq = nt - 1;
+        send_final_packet(nt, sock, out);
+        mylog("[completed]\n");
         break;
       }
       nt++; // increment the sequence number
@@ -174,6 +178,7 @@ int main(int argc, char *argv[]) {
       // Attempt to receive an ack
       unsigned char buf[10000];
       int buf_len = sizeof(buf);
+      mylog("recvfrom called\n");
       if (recvfrom(sock, &buf, buf_len, 0, (struct sockaddr *) &in, (socklen_t *) &in_len) < 0) {
         perror("recvfrom");
         exit(1);
@@ -181,17 +186,22 @@ int main(int argc, char *argv[]) {
 
       header *myheader = get_header(buf);
 
+      mylog("Sequence = %d\n", myheader->sequence);
+      mylog("na = %d\n", na);
+      mylog("Sequence part of if: %d\n", myheader->sequence > na);
       if ((myheader->magic == MAGIC) && (myheader->sequence > na) && (myheader->ack == 1)) {
         mylog("[recv ack] %d\n", myheader->sequence);
         na = myheader->sequence;
       } else {
+        if (myheader->eof) {
+          exit(1);
+        } 
         mylog("[recv corrupted ack] %x %d\n", MAGIC, na);
       }
     } else {
        mylog("[error] timeout occurred\n");
     }
   }
-  send_final_packet(nt, sock, out);
-  mylog("[completed]\n");
+
   return 0;
 }

@@ -25,6 +25,7 @@
 const int WINDOW_SZ = 10;
 
 int main() {
+  mylog("Start recv, mylog\n");
   /**
    * I've included some basic code for opening a UDP socket in C, 
    * binding to a empheral port, printing out the port number.
@@ -77,8 +78,8 @@ int main() {
   void* buf = malloc(buf_len);
 
   // Set up out window variables
-  int nr = 0; // The highest packet received
-  int ns = 1; // The highest packet not yet received + 1
+  int nr = 0; // The first packet not yet received
+  int ns = 1; // The highest packet ever received + 1
 
   // wait to receive, or for a timeout
   while (1) {
@@ -114,7 +115,7 @@ int main() {
         mylog("[send ack] %d\n", myheader->sequence + myheader->length);
 
         // Send an acknowledgement
-        header *responseheader = make_header(nr, 0, myheader->eof, 1);
+        header *responseheader = make_header(nr-1, 0, myheader->eof, 1);
         if (sendto(sock, responseheader, sizeof(header), 0, (struct sockaddr *) &in, (socklen_t) sizeof(in)) < 0) {
           perror("sendto");
           exit(1);
