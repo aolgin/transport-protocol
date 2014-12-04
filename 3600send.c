@@ -200,6 +200,8 @@ int main(int argc, char *argv[]) {
         } 
         mylog("[recv corrupted ack] %x %d\n", MAGIC, na);
       }
+    } else {
+      mylog("[error] timeout occured\n");
     }
   }
 
