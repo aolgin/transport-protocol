@@ -152,18 +152,20 @@ int main(int argc, char *argv[]) {
 
   int nt = na+1; // lowest packet not yet transmitted
 
-  int final_seq = -1;
+  int final_seq = -1; // The final sequence number, initially set to -1 to avoid conflicts
+  int same_acks = 1;  // The number of concurrent acks that are the same
+  int old_ack = -1;   // The sequence number of the previously received ack
 
   // while there is still data to send
   while (nt >= final_seq) { // TODO bug here
     // while the sequence number is in the window
     while (in_window(nt)) {
       // Send out the whole window's worth of packets
-      // If an error occurs, breaki
+      // If an error occurs, break
       mylog("nt = %d\n", nt);
       FD_ZERO(&socks);
       FD_SET(sock, &socks);
-      if (send_next_packet(nt, sock, out) < 1) { //TODO still causing an issue. How to handle final packet???
+      if (send_next_packet(nt, sock, out) < 1) {
         final_seq = nt - 1;
         send_final_packet(nt, sock, out);
         mylog("[completed]\n");
@@ -174,29 +176,37 @@ int main(int argc, char *argv[]) {
 
     FD_ZERO(&socks);
     FD_SET(sock, &socks);
-    if (select(sock + 1, &socks, NULL, NULL, &t)) {
-      // Attempt to receive an ack
-      unsigned char buf[10000];
-      int buf_len = sizeof(buf);
-      if (recvfrom(sock, &buf, buf_len, 0, (struct sockaddr *) &in, (socklen_t *) &in_len) < 0) {
-        perror("recvfrom");
-        exit(1);
-      }
+//    if (same_acks < 3) {
+      if (select(sock + 1, &socks, NULL, NULL, &t)) {
+        // Attempt to receive an ack
+        unsigned char buf[10000];
+        int buf_len = sizeof(buf);
+        if (recvfrom(sock, &buf, buf_len, 0, (struct sockaddr *) &in, (socklen_t *) &in_len) < 0) {
+          perror("recvfrom");
+          exit(1);
+        }
 
-      header *myheader = get_header(buf);
+        header *myheader = get_header(buf);
+        
+        if ((myheader->magic == MAGIC) && (myheader->sequence >= na) && (myheader->ack == 1)) {
+          mylog("[recv ack] %d\n", myheader->sequence);
+          
+          // Ground-work for fast-retransmit, currently won't affect code
+          if (old_ack == myheader->sequence) { same_acks++; } else { same_acks = 1; }
+          old_ack = na;
+          // END GROUNDWORK
 
-      if ((myheader->magic == MAGIC) && (myheader->sequence > na) && (myheader->ack == 1)) {
-        mylog("[recv ack] %d\n", myheader->sequence);
-        na = myheader->sequence;
+          na = myheader->sequence;
+        } else {
+          if (myheader->eof) {
+            return 0;
+          } 
+          mylog("[recv corrupted ack] %x %d\n", MAGIC, na);
+        }
       } else {
-        if (myheader->eof) {
-          return 0;
-        } 
-        mylog("[recv corrupted ack] %x %d\n", MAGIC, na);
+         mylog("[error] timeout occurred\n");
       }
-    } else {
-       mylog("[error] timeout occurred\n");
-    }
+//    }
   }
 
   return 0;
