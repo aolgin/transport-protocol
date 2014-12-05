@@ -79,7 +79,7 @@ int main() {
 
   // Set up out window variables
   int nr = 0; // The first packet not yet received
-  int ns = 1; // The highest packet ever received + 1
+  int ns = 0; // The highest packet ever received + 1
 
   // wait to receive, or for a timeout
   while (1) {
@@ -123,7 +123,7 @@ int main() {
             exit(1);
           }
 
-          if (myheader->eof) {
+          if (myheader->eof && ns == nr) {
             mylog("[recv eof]\n");
             mylog("[completed]\n");
             exit(0);

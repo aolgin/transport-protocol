@@ -19,6 +19,12 @@ typedef struct header_t {
   int sequence;
 } header;
 
+typedef struct time_packet {
+  time_t send_time;
+  char* packet;
+  int packet_len;
+} time_packet;
+
 unsigned int MAGIC;
 
 void dump_packet(unsigned char *data, int size);

@@ -24,6 +24,7 @@
 
 #include "3600sendrecv.h"
 
+time_packet* STORED_PACKETS[1000];
 static int DATA_SIZE = 1460;
 
 int na = -1;
@@ -69,7 +70,7 @@ void *get_next_packet(int sequence, int *len) {
   void *packet = malloc(sizeof(header) + data_len);
   memcpy(packet, myheader, sizeof(header));
   memcpy(((char *) packet) +sizeof(header), data, data_len);
-
+  
   free(data);
   free(myheader);
 
@@ -78,12 +79,36 @@ void *get_next_packet(int sequence, int *len) {
   return packet;
 }
 
+void store_packet(char* packet, int packet_len, int sequence) {
+  time_packet* stored = malloc(sizeof(time_packet));
+  stored->packet = packet;
+  stored->send_time = time(NULL);
+  stored->packet_len = packet_len;
+
+  STORED_PACKETS[sequence] = stored;
+}
+
+void resend_timedout_packets(int seconds, int current_nt, int sock, struct sockaddr_in out) {
+  for (int i = na + 1; i < current_nt; i++) {
+    time_packet* stored = STORED_PACKETS[i];
+    if (time(NULL) - stored->send_time > seconds) {
+      mylog("[resend data (timed out)] %d\n", i); 
+      sendto(sock, stored->packet, stored->packet_len, 
+             0, (struct sockaddr *) &out, (socklen_t) sizeof(out));
+      stored->send_time = time(NULL);
+    }
+  }
+}
+
 int send_next_packet(int sequence, int sock, struct sockaddr_in out) {
   int packet_len = 0;
   void *packet = get_next_packet(sequence, &packet_len);
 
   if (packet == NULL) 
     return 0;
+
+  // Store packet for retransmission
+  store_packet(packet, packet_len, sequence);
 
   mylog("[send data] %d (%d)\n", sequence, packet_len - sizeof(header));
 
@@ -153,12 +178,12 @@ int main(int argc, char *argv[]) {
 
   int nt = na+1; // lowest packet not yet transmitted
 
-  int final_seq = -1; // The final sequence number, initially set to -1 to avoid conflicts
+  int final_seq = -2; // The final sequence number, initially set to -1 to avoid conflicts
   int same_acks = 1;  // The number of consecutive acks of the same sequence number
   int old_ack = -1;   // The sequence number of the previously received ack
 
   // while there is still data to send
-  while (nt >= final_seq) { // TODO bug here
+  while (na >= final_seq) { // TODO bug here
 
     // while the sequence number is in the window
     while (in_window(nt) && nt > final_seq) {
@@ -192,13 +217,14 @@ int main(int argc, char *argv[]) {
    
       mylog("ACK Seq: %d\n", myheader->sequence);
       mylog("na: %d\n", na);
-      if ((myheader->magic == MAGIC) && (myheader->sequence > na) && (myheader->ack == 1)) {
+      if ((myheader->magic == MAGIC) && (myheader->sequence >= na) && (myheader->ack == 1)) {
         mylog("[recv ack] %d\n", myheader->sequence);
         //if (old_ack == myheader->sequence) { same_acks++; } else { same_acks = 1; }
         //old_ack = na;
         na = myheader->sequence;
       } else {
         if (myheader->eof) {
+          mylog("[recv eof ack]");
           return 0;
         } 
         mylog("[recv corrupted ack] %x %d\n", MAGIC, na);
@@ -212,6 +238,10 @@ int main(int argc, char *argv[]) {
     }
 
     // If neither if bracket is entered there simply wasn't data available
+    
+    // Check all the packets we've sent, see if any of the un acknowledged ones
+    // are timeout
+    resend_timedout_packets(10, nt, sock, out);
   }
 
   return 0;
