@@ -24,6 +24,8 @@
 
 const int WINDOW_SZ = 10;
 
+char* STORED_PACKETS[1000];
+
 int main() {
   mylog("Start recv, mylog\n");
   /**
@@ -102,7 +104,6 @@ int main() {
         // Check if it's in our window
         if (myheader->sequence >= nr && myheader->sequence < nr + WINDOW_SZ) {
 
-          write(1, data, myheader->length);
           
           // Update sequence variables
           if (myheader->sequence > ns) {
@@ -110,6 +111,10 @@ int main() {
           }
           if (myheader->sequence == nr) {
             nr++;
+            write_consecutive_packets(nr);
+            write(1, data, myheader->length);
+          } else {
+            STORED_PACKETS[myheader->sequence] = data;
           }
          
 
