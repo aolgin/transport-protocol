@@ -24,7 +24,20 @@
 
 const int WINDOW_SZ = 10;
 
-char* STORED_PACKETS[1000];
+stored_packet* STORED_PACKETS[1000];
+
+void write_consecutive_packets(int* nr) {
+  int i = *nr + 1;
+  while (STORED_PACKETS[i] != NULL) {
+    stored_packet* sp = STORED_PACKETS[i];
+    if (sp->written == 0) {
+      write(1, sp->packet, sp->packet_len);
+      sp->written = 1;
+    }
+    i++;
+  }
+  *nr = i - 1;
+}
 
 int main() {
   mylog("Start recv, mylog\n");
@@ -72,7 +85,7 @@ int main() {
 
   // construct the timeout
   struct timeval t;
-  t.tv_sec = 30;
+  t.tv_sec = 1000;
   t.tv_usec = 0;
 
   // our receive buffer
@@ -102,7 +115,7 @@ int main() {
       if (myheader->magic == MAGIC) {
 
         // Check if it's in our window
-        if (myheader->sequence >= nr && myheader->sequence < nr + WINDOW_SZ) {
+        if (myheader->sequence >= nr - 1 && myheader->sequence < nr + WINDOW_SZ) {
 
           
           // Update sequence variables
@@ -111,10 +124,19 @@ int main() {
           }
           if (myheader->sequence == nr) {
             nr++;
-            write_consecutive_packets(nr);
+            write_consecutive_packets(&nr);
             write(1, data, myheader->length);
           } else {
-            STORED_PACKETS[myheader->sequence] = data;
+            // Store the packet so we can write it when we get a 
+            // contiguous sequence of packets
+            if (STORED_PACKETS[myheader->sequence] == NULL) {
+              mylog("[store packet] %d\n", myheader->sequence);
+              stored_packet* sp = malloc(sizeof(stored_packet));
+              sp->packet = data;
+              sp->written = 0;
+              sp->packet_len = myheader->length;
+              STORED_PACKETS[myheader->sequence] = sp;
+            }
           }
          
 

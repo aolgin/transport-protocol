@@ -24,7 +24,7 @@
 
 #include "3600sendrecv.h"
 
-time_packet* STORED_PACKETS[1000];
+stored_packet* STORED_PACKETS[1000];
 static int DATA_SIZE = 1460;
 
 int na = -1;
@@ -33,7 +33,7 @@ int in_window(int seq) {
   // If the sequence number is larger than the window's first
   // position plus the window size, or if it is smaller than the first position
   // return false
-  if (seq >= WIN_SIZE + na) { // || seq < na) {
+  if (seq > WIN_SIZE + na) { // || seq < na) {
     return 0;
   } else {
     // else, it is in the window
@@ -80,7 +80,7 @@ void *get_next_packet(int sequence, int *len) {
 }
 
 void store_packet(char* packet, int packet_len, int sequence) {
-  time_packet* stored = malloc(sizeof(time_packet));
+  stored_packet* stored = malloc(sizeof(stored_packet));
   stored->packet = packet;
   stored->send_time = time(NULL);
   stored->packet_len = packet_len;
@@ -90,7 +90,7 @@ void store_packet(char* packet, int packet_len, int sequence) {
 
 void resend_timedout_packets(int seconds, int current_nt, int sock, struct sockaddr_in out) {
   for (int i = na + 1; i < current_nt; i++) {
-    time_packet* stored = STORED_PACKETS[i];
+    stored_packet* stored = STORED_PACKETS[i];
     if (time(NULL) - stored->send_time > seconds) {
       mylog("[resend data (timed out)] %d\n", i); 
       sendto(sock, stored->packet, stored->packet_len, 
@@ -123,6 +123,8 @@ int send_next_packet(int sequence, int sock, struct sockaddr_in out) {
 void send_final_packet(int seq, int sock, struct sockaddr_in out) {
   header *myheader = make_header(seq+1, 0, 1, 0);
   mylog("[send eof]\n");
+
+  store_packet((char*) myheader, sizeof(header), seq+1);
 
   if (sendto(sock, myheader, sizeof(header), 0, (struct sockaddr *) &out, (socklen_t) sizeof(out)) < 0) {
     perror("sendto");
@@ -182,8 +184,7 @@ int main(int argc, char *argv[]) {
   int same_acks = 1;  // The number of consecutive acks of the same sequence number
   int old_ack = -1;   // The sequence number of the previously received ack
 
-  // while there is still data to send
-  while (na >= final_seq) { // TODO bug here
+  while (1) { 
 
     // while the sequence number is in the window
     while (in_window(nt) && nt > final_seq) {
@@ -198,7 +199,6 @@ int main(int argc, char *argv[]) {
       if (send_next_packet(nt, sock, out) < 1) {
         final_seq = nt--;
         send_final_packet(nt, sock, out);
-        mylog("[completed]\n"); 
         break;
       }
       nt++; // increment the sequence number
@@ -224,7 +224,8 @@ int main(int argc, char *argv[]) {
         na = myheader->sequence;
       } else {
         if (myheader->eof) {
-          mylog("[recv eof ack]");
+          mylog("[recv eof ack]\n");
+          mylog("[complete]\n");
           return 0;
         } 
         mylog("[recv corrupted ack] %x %d\n", MAGIC, na);
@@ -241,7 +242,7 @@ int main(int argc, char *argv[]) {
     
     // Check all the packets we've sent, see if any of the un acknowledged ones
     // are timeout
-    resend_timedout_packets(10, nt, sock, out);
+    resend_timedout_packets(2, nt, sock, out);
   }
 
   return 0;
