@@ -35,8 +35,7 @@ There are two different methods for running the code:
 * Using the helper script 'run'
 
 
-Method One
-==========
+##Method One
 Open up two terminals on cs3600tcp.ccs.neu.edu, with both of them in the project directory
 
 Basically, the receiver must be run in one window, and then the sender in the other (given the port the receiver binds and a data file)
@@ -66,6 +65,8 @@ DATA\_SIZE is one of:
   10000     - a medium file
   100000    - a large file
   1000000   - a huge file
+
+##Method Two
 
 Alternatively, the helper script 'run' may be used. We have implemented several Make commands for this specifically. Note that all of these run on Netsim's default values unless otherwise specified
 * make run\_s - send a small file
