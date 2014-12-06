@@ -42,9 +42,13 @@ run_m_drp: all
 	./run --size medium --printlog
 
 run_l: all
-	$(netsim)
+	$(NETSIM)
+	./run --size large --printlog
+
+run_l_drp: all
+	$(NETSIM) --drop 50
 	./run --size large --printlog
 
 run_h: all
-	$(netsim)
+	$(NETSIM)
 	./run --size huge --printlog

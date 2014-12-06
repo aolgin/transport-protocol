@@ -17,6 +17,7 @@ typedef struct header_t {
   unsigned int eof:1;
   unsigned short length;
   int sequence;
+//  short checksum: 8;
 } header;
 
 unsigned int MAGIC;
@@ -27,11 +28,16 @@ header *get_header(void *data);
 char *get_data(void *data);
 char *timestamp();
 void mylog(char *fmt, ...);
-void update_window(int ack);
 int in_window(int seq);
+void usage();
+int get_next_data(char *data, int size);
+void *get_next_packet(int sequence, int *len);
+int send_next_packet(int sequence, int sock, struct sockaddr_in out);
+void send_final_packet(int seq, int sock, struct sockaddr_in out);
+//u_short cksum(u_short *buf, int count);
+int is_match(unsigned int magic, int seq, unsigned int ack);
 
 #define WIN_SIZE 7
-static const int max_seq_num = 2 * WIN_SIZE;
 
 #endif
 

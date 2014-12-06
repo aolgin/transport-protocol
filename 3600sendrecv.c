@@ -65,6 +65,7 @@ header *make_header(int sequence, int length, int eof, int ack) {
   myheader->sequence = htonl(sequence);
   myheader->length = htons(length);
   myheader->ack = ack;
+  //myheader->cksum = cksum(*buf, count) TODO
 
   return myheader;
 }
@@ -144,3 +145,19 @@ void dump_packet(unsigned char *data, int size) {
         printf("[%4.4s]   %-50.50s  %s\n", addrstr, hexstr, charstr);
     }
 }
+
+// Calculate the internet checksum for a packet
+// (code from the slides)
+/* TODO
+ u_short cksum(u_short *buf, int count) {
+  register u_long sum = 0;
+  while (count--) {
+    sum += *buf++;
+    if (sum & 0xFFFF0000) {
+      // carry occurred, so wrap around
+      sum &= 0xFFFF;
+      sum++;
+    }
+  }
+  return ~(sum & 0xFFFF);
+} */

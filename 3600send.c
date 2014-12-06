@@ -30,14 +30,8 @@ int na = -1;
 
 int in_window(int seq) {
   // If the sequence number is larger than the window's first
-  // position plus the window size, or if it is smaller than the first position
-  // return false
-  if (seq >= WIN_SIZE + na) { // || seq < na) {
-    return 0;
-  } else {
-    // else, it is in the window
-    return 1;
-  }
+  // position plus the window size return false. Else, true
+  if (seq > WIN_SIZE + na) { return 0;} else { return 1; }
 }
 
 void usage() {
@@ -105,6 +99,11 @@ void send_final_packet(int seq, int sock, struct sockaddr_in out) {
   }
 }
 
+// Is the packet with the given magic, sequence number, and ack
+// a packet that we are looking for?
+int is_match(unsigned int magic, int seq, unsigned int ack) {
+   return ((magic == MAGIC) && (seq >= na) && (ack == 1));
+}
 
 int main(int argc, char *argv[]) {
   /**
@@ -153,12 +152,11 @@ int main(int argc, char *argv[]) {
 
   int nt = na+1; // lowest packet not yet transmitted
 
-  int final_seq = -1; // The final sequence number, initially set to -1 to avoid conflicts
+  int final_seq = -2; // The final sequence number, initially set to -1 to avoid conflicts
   int same_acks = 1;  // The number of consecutive acks of the same sequence number
-  int old_ack = -1;   // The sequence number of the previously received ack
 
   // while there is still data to send
-  while (nt >= final_seq) { // TODO bug here
+  while (na != final_seq) {
 
     // while the sequence number is in the window
     while (in_window(nt) && nt > final_seq) {
@@ -166,8 +164,7 @@ int main(int argc, char *argv[]) {
       // If an error occurs, there's no more data to send,
       // and we need to set final_seq to the last sequence number
       // so we can check for when we get its ack
-
-      // mylog("nt = %d\n", nt);
+      mylog("nt = %d\n", nt);
       FD_ZERO(&socks);
       FD_SET(sock, &socks);
       if (send_next_packet(nt, sock, out) < 1) {
@@ -186,16 +183,29 @@ int main(int argc, char *argv[]) {
     int buf_len = sizeof(buf);
     int r = recvfrom(sock, &buf, buf_len, 0, (struct sockaddr *) &in, (socklen_t *) &in_len);
 
-    // We found a packet
-    if (r != -1) {
+    // If the previous three acks have been for the same seq,
+    // na+1 is considered dropped. Reset nt
+    if (same_acks == 3) {
+      mylog("PACKET DROPPED, retransmit from na(%d)+1\n", na);
+      nt = na+1;
+      same_acks = 1;
+    }
+    else if ( r >= 0) {
       header *myheader = get_header(buf);
-   
-      mylog("ACK Seq: %d\n", myheader->sequence);
-      mylog("na: %d\n", na);
-      if ((myheader->magic == MAGIC) && (myheader->sequence > na) && (myheader->ack == 1)) {
+ 
+      mylog("ACK Seq: %d, NA: %d\n", myheader->sequence, na);
+  
+      if (is_match(myheader->magic, myheader->sequence, myheader->ack)) {
+        /* TODO potential checksum implementation?
+         * Should actually be put above this if
+        if (myheader->cksum != cksum(myheader, count)) {
+          mylog("[recv corrupted ack] %x %d\n", MAGIC, na);
+          nt = na+1;
+          same_acks = 1;
+        } */
         mylog("[recv ack] %d\n", myheader->sequence);
-        //if (old_ack == myheader->sequence) { same_acks++; } else { same_acks = 1; }
-        //old_ack = na;
+        if (na == myheader->sequence) { same_acks++; } else { same_acks = 1; }
+        mylog("SAME: %d\n", same_acks);
         na = myheader->sequence;
       } else {
         if (myheader->eof) {
@@ -204,15 +214,14 @@ int main(int argc, char *argv[]) {
         mylog("[recv corrupted ack] %x %d\n", MAGIC, na);
       }
     }
-
-    // We found a real error
-    if (errno != EAGAIN && errno != EWOULDBLOCK) {
-      perror("recv from");
-      exit(1);
-    }
-
-    // If neither if bracket is entered there simply wasn't data available
+  }
+  // We found a real error
+  if (errno != EAGAIN && errno != EWOULDBLOCK) {
+    perror("recv from");
+    exit(1);
   }
 
+    // If neither if bracket is entered there simply wasn't data available
+  
   return 0;
 }
