@@ -121,10 +121,10 @@ int send_next_packet(int sequence, int sock, struct sockaddr_in out) {
 }
 
 void send_final_packet(int seq, int sock, struct sockaddr_in out) {
-  header *myheader = make_header(seq+1, 0, 1, 0);
+  header *myheader = make_header(seq, 0, 1, 0);
   mylog("[send eof]\n");
 
-  store_packet((char*) myheader, sizeof(header), seq+1);
+  store_packet((char*) myheader, sizeof(header), seq);
 
   if (sendto(sock, myheader, sizeof(header), 0, (struct sockaddr *) &out, (socklen_t) sizeof(out)) < 0) {
     perror("sendto");
@@ -197,11 +197,12 @@ int main(int argc, char *argv[]) {
       FD_ZERO(&socks);
       FD_SET(sock, &socks);
       if (send_next_packet(nt, sock, out) < 1) {
-        final_seq = nt--;
-        send_final_packet(nt, sock, out);
+        final_seq = nt;
+        send_final_packet(nt - 1, sock, out);
         break;
+      } else {
+        nt++; // increment the sequence number
       }
-      nt++; // increment the sequence number
     }
 
     FD_ZERO(&socks);
@@ -218,17 +219,16 @@ int main(int argc, char *argv[]) {
       mylog("ACK Seq: %d\n", myheader->sequence);
       mylog("na: %d\n", na);
       if ((myheader->magic == MAGIC) && (myheader->sequence >= na) && (myheader->ack == 1)) {
-        mylog("[recv ack] %d\n", myheader->sequence);
-        //if (old_ack == myheader->sequence) { same_acks++; } else { same_acks = 1; }
-        //old_ack = na;
-        na = myheader->sequence;
-      } else {
         if (myheader->eof) {
           mylog("[recv eof ack]\n");
           mylog("[complete]\n");
           return 0;
-        } 
-        mylog("[recv corrupted ack] %x %d\n", MAGIC, na);
+        } else {
+          mylog("[recv ack] %d\n", myheader->sequence);
+          na = myheader->sequence;
+        }
+      } else {
+       mylog("[recv corrupted ack] %x %d\n", MAGIC, na);
       }
     }
 

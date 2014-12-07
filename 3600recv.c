@@ -85,7 +85,7 @@ int main() {
 
   // construct the timeout
   struct timeval t;
-  t.tv_sec = 1000;
+  t.tv_sec = 100;
   t.tv_usec = 0;
 
   // our receive buffer
@@ -95,11 +95,18 @@ int main() {
   // Set up out window variables
   int nr = 0; // The first packet not yet received
   int ns = 0; // The highest packet ever received + 1
+  int time_wait = -1;
 
   // wait to receive, or for a timeout
   while (1) {
     FD_ZERO(&socks);
     FD_SET(sock, &socks);
+
+    // Exit if we've sent the eof ack and haven't heard
+    // back in 5 seconds for a new one
+    if (time_wait > 0 && time(0) - time_wait > 5) {
+      return 0;
+    }
 
     if (select(sock + 1, &socks, NULL, NULL, &t)) {
       int received;
@@ -140,20 +147,26 @@ int main() {
           }
          
 
-          mylog("[recv data] %d (%d) %s\n", myheader->sequence, myheader->length, "ACCEPTED (in-order)");
+          mylog("[recv data] %d (%d) %s EOF(%d)\n", myheader->sequence, myheader->length, "ACCEPTED (in-order)", myheader->eof);
           mylog("[send ack] %d\n", nr-1);
-
+    
           // Send an acknowledgement
           header *responseheader = make_header(nr-1, 0, myheader->eof, 1);
-          if (sendto(sock, responseheader, sizeof(header), 0, (struct sockaddr *) &in, (socklen_t) sizeof(in)) < 0) {
-            perror("sendto");
-            exit(1);
+          if (!myheader->eof) {
+            if (sendto(sock, responseheader, sizeof(header), 0, (struct sockaddr *) &in, (socklen_t) sizeof(in)) < 0) {
+              perror("sendto");
+              exit(1);
+            }
           }
 
           if (myheader->eof && ns == nr) {
+            if (sendto(sock, responseheader, sizeof(header), 0, (struct sockaddr *) &in, (socklen_t) sizeof(in)) < 0) {
+              perror("sendto");
+              exit(1);
+            }
             mylog("[recv eof]\n");
             mylog("[completed]\n");
-            exit(0);
+            time_wait = time(0);
           }
 
         }
