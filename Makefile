@@ -45,6 +45,10 @@ run_l: all
 	$(netsim)
 	./run --size large --printlog
 
+run_l_drp: all
+	$(NETSIM) --drop 50
+	./run --size large --printlog
+
 run_h: all
 	$(netsim)
 	./run --size huge --printlog

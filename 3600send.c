@@ -28,17 +28,14 @@ stored_packet* STORED_PACKETS[1000];
 static int DATA_SIZE = 1460;
 
 int na = -1;
+int same_acks = 1;
+int nt = 0;
 
 int in_window(int seq) {
   // If the sequence number is larger than the window's first
   // position plus the window size, or if it is smaller than the first position
   // return false
-  if (seq > WIN_SIZE + na) { // || seq < na) {
-    return 0;
-  } else {
-    // else, it is in the window
-    return 1;
-  }
+  if (seq > WIN_SIZE + na) { return 0; } else { return 1; }
 }
 
 void usage() {
@@ -96,6 +93,8 @@ void resend_timedout_packets(int seconds, int current_nt, int sock, struct socka
       sendto(sock, stored->packet, stored->packet_len, 
              0, (struct sockaddr *) &out, (socklen_t) sizeof(out));
       stored->send_time = time(NULL);
+      same_acks = 1;
+      nt = i;
     }
   }
 }
@@ -122,7 +121,7 @@ int send_next_packet(int sequence, int sock, struct sockaddr_in out) {
 
 void send_final_packet(int seq, int sock, struct sockaddr_in out) {
   header *myheader = make_header(seq+1, 0, 1, 0);
-  mylog("[send eof]\n");
+  mylog("[send eof] %d\n", seq+1);
 
   store_packet((char*) myheader, sizeof(header), seq+1);
 
@@ -178,11 +177,8 @@ int main(int argc, char *argv[]) {
   t.tv_sec = 30;
   t.tv_usec = 0;
 
-  int nt = na+1; // lowest packet not yet transmitted
-
   int final_seq = -2; // The final sequence number, initially set to -1 to avoid conflicts
-  int same_acks = 1;  // The number of consecutive acks of the same sequence number
-  int old_ack = -1;   // The sequence number of the previously received ack
+//  int nt = na+1;
 
   while (1) { 
 
@@ -197,52 +193,60 @@ int main(int argc, char *argv[]) {
       FD_ZERO(&socks);
       FD_SET(sock, &socks);
       if (send_next_packet(nt, sock, out) < 1) {
-        final_seq = nt--;
-        send_final_packet(nt, sock, out);
+        mylog("ABOUT TO SEND EOF\n");
+        final_seq = nt;
+        send_final_packet(nt-1, sock, out);
         break;
       }
       nt++; // increment the sequence number
     }
 
-    FD_ZERO(&socks);
-    FD_SET(sock, &socks);
-    // Attempt to receive an ack, this is non blocking
-    unsigned char buf[10000];
-    int buf_len = sizeof(buf);
-    int r = recvfrom(sock, &buf, buf_len, 0, (struct sockaddr *) &in, (socklen_t *) &in_len);
+    // if the last three acks we got were for the same sequence number
+    if (same_acks == 3) {
+      mylog("[packet dropped (fast retransmit from %d)]\n", na+1);
+      same_acks = 1;
+      resend_timedout_packets(2, nt, sock, out);
+    } else {
+      FD_ZERO(&socks);
+      FD_SET(sock, &socks);
+      // Attempt to receive an ack, this is non blocking
+      unsigned char buf[10000];
+      int buf_len = sizeof(buf);
+      int r = recvfrom(sock, &buf, buf_len, 0, (struct sockaddr *) &in, (socklen_t *) &in_len);
 
-    // We found a packet
-    if (r != -1) {
-      header *myheader = get_header(buf);
-   
-      mylog("ACK Seq: %d\n", myheader->sequence);
-      mylog("na: %d\n", na);
-      if ((myheader->magic == MAGIC) && (myheader->sequence >= na) && (myheader->ack == 1)) {
-        mylog("[recv ack] %d\n", myheader->sequence);
-        //if (old_ack == myheader->sequence) { same_acks++; } else { same_acks = 1; }
-        //old_ack = na;
-        na = myheader->sequence;
-      } else {
-        if (myheader->eof) {
-          mylog("[recv eof ack]\n");
-          mylog("[complete]\n");
-          return 0;
-        } 
-        mylog("[recv corrupted ack] %x %d\n", MAGIC, na);
+      // We found a packet
+      if (r != -1) {
+        header *myheader = get_header(buf);
+     
+        mylog("ACK Seq: %d, NA: %d\n", myheader->sequence, na);
+        if ((myheader->magic == MAGIC) && (myheader->sequence >= na) && (myheader->ack == 1)) {
+          if (myheader->eof) {
+            mylog("[recv eof ack]\n");
+            mylog("[complete]\n");
+            return 0;
+          }
+          
+          mylog("[recv ack] %d\n", myheader->sequence);
+          if (na == myheader->sequence) { same_acks++; } else { same_acks = 1; }
+          mylog("SAME: %d\n", same_acks);
+          na = myheader->sequence;
+        } else {
+          mylog("[recv corrupted ack] %x %d\n", MAGIC, na);
+        }
       }
-    }
 
-    // We found a real error
-    if (errno != EAGAIN && errno != EWOULDBLOCK) {
-      perror("recv from");
-      exit(1);
-    }
+      // We found a real error
+      if (errno != EAGAIN && errno != EWOULDBLOCK) {
+        perror("recv from");
+        exit(1);
+      }
 
-    // If neither if bracket is entered there simply wasn't data available
-    
-    // Check all the packets we've sent, see if any of the un acknowledged ones
-    // are timeout
-    resend_timedout_packets(2, nt, sock, out);
+      // If neither if bracket is entered there simply wasn't data available
+      
+      // Check all the packets we've sent, see if any of the un acknowledged ones
+      // are timeout
+      resend_timedout_packets(2, nt, sock, out);
+    }
   }
 
   return 0;

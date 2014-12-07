@@ -40,7 +40,6 @@ void write_consecutive_packets(int* nr) {
 }
 
 int main() {
-  mylog("Start recv, mylog\n");
   /**
    * I've included some basic code for opening a UDP socket in C, 
    * binding to a empheral port, printing out the port number.
@@ -150,12 +149,15 @@ int main() {
             exit(1);
           }
 
-          if (myheader->eof && ns == nr) {
-            mylog("[recv eof]\n");
+          mylog("NS: %d, NR: %d\n", ns, nr);
+          if (myheader->eof && ns >= nr) {
+            mylog("[recv eof] %d\n", myheader->sequence);
             mylog("[completed]\n");
             exit(0);
           }
 
+        } else {
+          mylog("[IGNORED (out-of-window)] %d\n", myheader->sequence);
         }
       } else {
         mylog("[recv corrupted packet]\n");
