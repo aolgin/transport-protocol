@@ -19,6 +19,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <errno.h>
 
 #include "3600sendrecv.h"
 
@@ -54,7 +55,7 @@ int main() {
    */
 
   // first, open a UDP socket  
-  int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  int sock = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK, IPPROTO_UDP);
 
   // next, construct the local port
   struct sockaddr_in out;
@@ -100,14 +101,10 @@ int main() {
   while (1) {
     FD_ZERO(&socks);
     FD_SET(sock, &socks);
+    //unsigned char buf[buf_len];
 
-    if (select(sock + 1, &socks, NULL, NULL, &t)) {
-      int received;
-      if ((received = recvfrom(sock, buf, buf_len, 0, (struct sockaddr *) &in, (socklen_t *) &in_len)) < 0) {
-        perror("recvfrom");
-        exit(1);
-      }
-
+    int r = recvfrom(sock, buf, buf_len, 0, (struct sockaddr *) &in, (socklen_t *) &in_len);
+    if (r != -1) {
       header *myheader = get_header(buf);
       char *data = get_data(buf);
  
@@ -116,7 +113,6 @@ int main() {
 
         // Check if it's in our window
         if (myheader->sequence >= nr - 1 && myheader->sequence < nr + WINDOW_SZ) {
-
           
           // Update sequence variables
           if (myheader->sequence > ns) {
@@ -140,7 +136,7 @@ int main() {
           }
          
           char* accepted;
-          if (nr == ns) {
+          if (nr == ns-1) {
             accepted = "ACCEPTED (in-order)";
           } else {
             accepted = "ACCEPTED (out-of-order)";
@@ -161,18 +157,13 @@ int main() {
             mylog("[completed]\n");
             exit(0);
           }
-
         }
-      } else {
-        mylog("[recv corrupted packet]\n");
       }
-      
-    } else {
-      mylog("[error] timeout occurred\n");
+    }
+    if (errno != EAGAIN && errno != EWOULDBLOCK) {
+      perror("recvfrom");
       exit(1);
     }
   }
-
-
   return 0;
 }
