@@ -41,7 +41,6 @@ void write_consecutive_packets(int* nr) {
 }
 
 int main() {
-  mylog("Start recv, mylog\n");
   /**
    * I've included some basic code for opening a UDP socket in C, 
    * binding to a empheral port, printing out the port number.
@@ -91,7 +90,7 @@ int main() {
 
   // our receive buffer
   int buf_len = 1500;
-  void* buf = malloc(buf_len);
+  //void* buf = malloc(buf_len);
 
   // Set up out window variables
   int nr = 0; // The first packet not yet received
@@ -101,12 +100,12 @@ int main() {
   while (1) {
     FD_ZERO(&socks);
     FD_SET(sock, &socks);
-    //unsigned char buf[buf_len];
+    unsigned char buf[buf_len];
 
-    int r = recvfrom(sock, buf, buf_len, 0, (struct sockaddr *) &in, (socklen_t *) &in_len);
+    int r = recvfrom(sock, &buf, buf_len, 0, (struct sockaddr *) &in, (socklen_t *) &in_len);
     if (r != -1) {
-      header *myheader = get_header(buf);
-      char *data = get_data(buf);
+      header *myheader = get_header(&buf);
+      char *data = get_data(&buf);
  
       // We have successfully received a packet 
       if (myheader->magic == MAGIC) {
