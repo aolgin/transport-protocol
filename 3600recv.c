@@ -85,7 +85,7 @@ int main() {
 
   // construct the timeout
   struct timeval t;
-  t.tv_sec = 1000;
+  t.tv_sec = 120;
   t.tv_usec = 0;
 
   // our receive buffer
@@ -139,8 +139,14 @@ int main() {
             }
           }
          
+          char* accepted;
+          if (nr == ns) {
+            accepted = "ACCEPTED (in-order)";
+          } else {
+            accepted = "ACCEPTED (out-of-order)";
+          }
 
-          mylog("[recv data] %d (%d) %s\n", myheader->sequence, myheader->length, "ACCEPTED (in-order)");
+          mylog("[recv data] %d (%d) %s\n", myheader->sequence, myheader->length, accepted);
           mylog("[send ack] %d\n", nr-1);
 
           // Send an acknowledgement
