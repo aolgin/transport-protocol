@@ -19,6 +19,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <errno.h>
 
 #include "3600sendrecv.h"
 
@@ -54,7 +55,7 @@ int main() {
    */
 
   // first, open a UDP socket  
-  int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  int sock = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK, IPPROTO_UDP);
 
   // next, construct the local port
   struct sockaddr_in out;
@@ -108,13 +109,10 @@ int main() {
       return 0;
     }
 
-    if (select(sock + 1, &socks, NULL, NULL, &t)) {
-      int received;
-      if ((received = recvfrom(sock, buf, buf_len, 0, (struct sockaddr *) &in, (socklen_t *) &in_len)) < 0) {
-        perror("recvfrom");
-        exit(1);
-      }
+    int r = recvfrom(sock, buf, buf_len, 0, (struct sockaddr *) &in, (socklen_t *) &in_len);
 
+    // We have a packet available! How exciting!
+    if (r != -1) {
       header *myheader = get_header(buf);
       char *data = get_data(buf);
  
@@ -173,11 +171,12 @@ int main() {
       } else {
         mylog("[recv corrupted packet]\n");
       }
-      
-    } else {
-      mylog("[error] timeout occurred\n");
+      // We expect these errors for when there's noting available
+      // but we don't want to block
+    } else if (errno != EAGAIN && errno != EWOULDBLOCK) {
+      perror("recvfrom");
       exit(1);
-    }
+    } 
   }
 
 

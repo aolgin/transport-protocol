@@ -34,6 +34,7 @@ int in_window(int seq) {
   // position plus the window size, or if it is smaller than the first position
   // return false
   if (seq > WIN_SIZE + na) { // || seq < na) {
+    mylog("[rejected ack] not in window %d\n", seq);
     return 0;
   } else {
     // else, it is in the window
