@@ -133,9 +133,9 @@ int main() {
               STORED_PACKETS[myheader->sequence] = sp;
             }
           }
-         
+        
           char* accepted;
-          if (nr == ns-1) {
+          if (nr == myheader->sequence) {
             accepted = "ACCEPTED (in-order)";
           } else {
             accepted = "ACCEPTED (out-of-order)";

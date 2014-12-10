@@ -41,6 +41,14 @@ run_m_drp: all
 	$(NETSIM) --drop 50
 	./run --size medium --printlog
 
+run_m_dly: all
+	$(NETSIM) --delay 50
+	./run --size medium --printlog
+
+run_m_reorder: all
+	$(NETSIM) --reorder 50
+	./run --size medium --printlog
+
 run_l: all
 	$(netsim)
 	./run --size large --printlog
