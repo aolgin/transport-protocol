@@ -117,7 +117,7 @@ int send_next_packet(int sequence, int sock, struct sockaddr_in out) {
 
 void send_final_packet(int seq, int sock, struct sockaddr_in out) {
   header *myheader = make_header(seq, 0, 1, 0);
-  mylog("[send eof]\n");
+  mylog("[send eof] %d\n", seq);
 
   store_packet((char*) myheader, sizeof(header), seq);
 
@@ -175,12 +175,12 @@ int main(int argc, char *argv[]) {
 
   int nt = na+1; // lowest packet not yet transmitted
 
-  int final_seq = -2; // The final sequence number, initially set to -1 to avoid conflicts
+  int sent_eof = 0; // Have we sent the eof
 
   while (1) { 
 
     // while the sequence number is in the window
-    while (in_window(nt) && nt > final_seq) {
+    while (in_window(nt) && !sent_eof) {
       // Send out the whole window's worth of packets
       // If an error occurs, there's no more data to send,
       // and we need to set final_seq to the last sequence number
@@ -190,12 +190,10 @@ int main(int argc, char *argv[]) {
       FD_ZERO(&socks);
       FD_SET(sock, &socks);
       if (send_next_packet(nt, sock, out) < 1) {
-        final_seq = nt;
+        sent_eof = 1;
         send_final_packet(nt, sock, out);
-        break;
-      } else {
-        nt++; // increment the sequence number
       }
+      nt++; // increment the sequence number
     }
 
     FD_ZERO(&socks);
