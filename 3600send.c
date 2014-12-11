@@ -33,13 +33,7 @@ int in_window(int seq) {
   // If the sequence number is larger than the window's first
   // position plus the window size, or if it is smaller than the first position
   // return false
-  if (seq > WIN_SIZE + na) { // || seq < na) {
-    mylog("[rejected ack] not in window %d\n", seq);
-    return 0;
-  } else {
-    // else, it is in the window
-    return 1;
-  }
+  if (seq > WIN_SIZE + na) { return 0; } else { return 1; }
 }
 
 void usage() {
@@ -182,8 +176,6 @@ int main(int argc, char *argv[]) {
   int nt = na+1; // lowest packet not yet transmitted
 
   int final_seq = -2; // The final sequence number, initially set to -1 to avoid conflicts
-  int same_acks = 1;  // The number of consecutive acks of the same sequence number
-  int old_ack = -1;   // The sequence number of the previously received ack
 
   while (1) { 
 
@@ -199,7 +191,7 @@ int main(int argc, char *argv[]) {
       FD_SET(sock, &socks);
       if (send_next_packet(nt, sock, out) < 1) {
         final_seq = nt;
-        send_final_packet(nt - 1, sock, out);
+        send_final_packet(nt, sock, out);
         break;
       } else {
         nt++; // increment the sequence number

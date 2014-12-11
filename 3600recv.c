@@ -41,7 +41,6 @@ void write_consecutive_packets(int* nr) {
 }
 
 int main() {
-  mylog("Start recv, mylog\n");
   /**
    * I've included some basic code for opening a UDP socket in C, 
    * binding to a empheral port, printing out the port number.
