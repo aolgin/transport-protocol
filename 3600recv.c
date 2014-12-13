@@ -28,16 +28,32 @@ const int WINDOW_SZ = 10;
 stored_packet* STORED_PACKETS[1000];
 
 void write_consecutive_packets(int* nr) {
-  int i = *nr + 1;
+  // Begin writing from where we just got a new packet
+  int i = *nr;
   while (STORED_PACKETS[i] != NULL) {
     stored_packet* sp = STORED_PACKETS[i];
+
     if (sp->written == 0) {
+      mylog("Writing stored packet %d\n", i);
       write(1, sp->packet, sp->packet_len);
       sp->written = 1;
     }
     i++;
   }
-  *nr = i - 1;
+  *nr = i;
+}
+
+void store_packet(char* data, int length, int seq) {
+  mylog("[store packet] %d\n", seq);
+
+  char* new_packet = malloc(length);
+  memcpy(new_packet, data, length);
+
+  stored_packet* sp = malloc(sizeof(stored_packet));
+  sp->packet = new_packet;
+  sp->written = 0;
+  sp->packet_len = length;
+  STORED_PACKETS[seq] = sp;
 }
 
 int main() {
@@ -123,31 +139,25 @@ int main() {
 
           
           mylog("[recv data] %d (%d) %s EOF(%d)\n", myheader->sequence, myheader->length, "ACCEPTED (in-order)", myheader->eof);
-          
+         
+          // Store the packet if it isn't next sequentially and we haven't stored it
+          if (myheader->sequence != nr && STORED_PACKETS[myheader->sequence] == NULL) {
+            store_packet(data, myheader->length, myheader->sequence);
+          }
+
           // Update sequence variables
+          // This packet is greater than the highest packet we've yet seen
           if (myheader->sequence >= ns) {
             ns = myheader->sequence + 1;
             mylog("Updating ns to %d\n", ns);
           }
+          // This packet is the lowest packet we've no yet seen
           if (myheader->sequence == nr) {
             nr++;
             write_consecutive_packets(&nr);
             write(1, data, myheader->length);
-          } else {
-            // Store the packet so we can write it when we get a 
-            // contiguous sequence of packets
-            if (STORED_PACKETS[myheader->sequence] == NULL) {
-              mylog("[store packet] %d\n", myheader->sequence);
-              stored_packet* sp = malloc(sizeof(stored_packet));
-              sp->packet = data;
-              sp->written = 0;
-              sp->packet_len = myheader->length;
-              STORED_PACKETS[myheader->sequence] = sp;
-            }
           }
          
-
-    
           // Send an acknowledgement
           header *responseheader = make_header(nr-1, 0, myheader->eof, 1);
           if (!myheader->eof) {
