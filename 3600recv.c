@@ -104,7 +104,7 @@ int main() {
 
     // Exit if we've sent the eof ack and haven't heard
     // back in 5 seconds for a new one
-    if (time_wait > 0 && time(0) - time_wait > 5) {
+    if (time_wait > 0 && time(0) - time_wait > 8) {
       return 0;
     }
 
@@ -122,9 +122,12 @@ int main() {
         if (myheader->sequence >= nr - 1 && myheader->sequence < nr + WINDOW_SZ) {
 
           
+          mylog("[recv data] %d (%d) %s EOF(%d)\n", myheader->sequence, myheader->length, "ACCEPTED (in-order)", myheader->eof);
+          
           // Update sequence variables
-          if (myheader->sequence > ns) {
+          if (myheader->sequence >= ns) {
             ns = myheader->sequence + 1;
+            mylog("Updating ns to %d\n", ns);
           }
           if (myheader->sequence == nr) {
             nr++;
@@ -144,19 +147,20 @@ int main() {
           }
          
 
-          mylog("[recv data] %d (%d) %s EOF(%d)\n", myheader->sequence, myheader->length, "ACCEPTED (in-order)", myheader->eof);
-          mylog("[send ack] %d\n", nr-1);
     
           // Send an acknowledgement
           header *responseheader = make_header(nr-1, 0, myheader->eof, 1);
           if (!myheader->eof) {
+            mylog("[send ack] %d\n", nr-1);
             if (sendto(sock, responseheader, sizeof(header), 0, (struct sockaddr *) &in, (socklen_t) sizeof(in)) < 0) {
               perror("sendto");
               exit(1);
             }
           }
 
+          mylog("NS: %d NR: %d\n", ns, nr);
           if (myheader->eof && ns == nr) {
+            mylog("[send eof ack] %d\n", nr-1);
             if (sendto(sock, responseheader, sizeof(header), 0, (struct sockaddr *) &in, (socklen_t) sizeof(in)) < 0) {
               perror("sendto");
               exit(1);
