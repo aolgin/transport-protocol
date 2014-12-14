@@ -13,17 +13,16 @@ We currently have not implemented in some of the features of popular TCP version
 
 Features
 ========
-* Operates using a sliding window protocol, with a window of size 7 (may change?)
+* Operates using a sliding window protocol, with a window of size of 7 
 * Provides reliable transmission for files of small, medium, large, and even huge files
-* Gracefully handles packet duplication, packet drops, timeouts, and corrupted packets (using an internet checksum)
-* Fast retransmission if 3 of the same acks of are consecutively received
+* Gracefully handles packet duplication, packet drops, reordered packets, and timeouts
 
 
 Potential Future Features
 ==============
 * A congestion window that adapts to the situation
 * Slow start and congestion avoidance phases
-
+* Fast Re-transmit
 
 Correct Usage
 =============
@@ -94,10 +93,6 @@ Our Approach
 First, we tried to implement a window, and even though it took a while, we got one in place.
 Then, we tackled duplicate packets by ensuring the receiver would stop caring about packets outside of the current window
 Next, we started work on handling timeouts, followed by duplicate packets. We figured out a way to temporarily store the packets we are sending so that we can check for timeouts, drops, and even reordering.
-Lastly, we handled corrupt packets, and worked on implementing an internet checksum into the packets.
-
-Once all that was done, we started looking into potential improvements, such as fast retransmit and some other minor optimizations.
-
 
 Challenges Faced
 ================
@@ -105,5 +100,4 @@ Challenges Faced
 * Understanding how sockets work
 * Broken Pipe errors, especially on large files
 * Timeouts and dropped packet handling
-* Fast retransmit
-
+* Proper handling of the eof

@@ -38,7 +38,6 @@ void update_window(int ack);
 int in_window(int seq);
 
 #define WIN_SIZE 7
-static const int max_seq_num = 2 * WIN_SIZE;
 
 #endif
 

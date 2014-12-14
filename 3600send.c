@@ -185,8 +185,6 @@ int main(int argc, char *argv[]) {
       // If an error occurs, there's no more data to send,
       // and we need to set final_seq to the last sequence number
       // so we can check for when we get its ack
-
-      // mylog("nt = %d\n", nt);
       FD_ZERO(&socks);
       FD_SET(sock, &socks);
       if (send_next_packet(nt, sock, out) < 1) {
@@ -199,7 +197,7 @@ int main(int argc, char *argv[]) {
     FD_ZERO(&socks);
     FD_SET(sock, &socks);
     // Attempt to receive an ack, this is non blocking
-    unsigned char buf[10000];
+    unsigned char buf[1500];
     int buf_len = sizeof(buf);
     int r = recvfrom(sock, &buf, buf_len, 0, (struct sockaddr *) &in, (socklen_t *) &in_len);
 
@@ -207,8 +205,7 @@ int main(int argc, char *argv[]) {
     if (r != -1) {
       header *myheader = get_header(buf);
    
-      mylog("ACK Seq: %d\n", myheader->sequence);
-      mylog("na: %d\n", na);
+      mylog("ACK Seq: %d, NA: %d\n", myheader->sequence, na);
       if ((myheader->magic == MAGIC) && (myheader->sequence >= na) && (myheader->ack == 1)) {
         if (myheader->eof) {
           mylog("[recv eof ack]\n");
