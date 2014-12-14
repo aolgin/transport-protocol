@@ -154,8 +154,8 @@ int main() {
           // This packet is the lowest packet we've no yet seen
           if (myheader->sequence == nr) {
             nr++;
-            write_consecutive_packets(&nr);
             write(1, data, myheader->length);
+            write_consecutive_packets(&nr);
           }
          
           // Send an acknowledgement
